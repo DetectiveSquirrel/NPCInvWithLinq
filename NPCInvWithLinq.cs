@@ -5,6 +5,7 @@ using ExileCore.PoEMemory.MemoryObjects;
 using ExileCore.Shared.Cache;
 using ItemFilterLibrary;
 using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 
@@ -12,14 +13,14 @@ namespace NPCInvWithLinq
 {
     public class NPCInvWithLinq : BaseSettingsPlugin<NPCInvWithLinqSettings>
     {
-        private readonly TimeCache<List<ItemData>> _itemLabels;
+        private readonly TimeCache<List<CustomItemData>> _itemLabels;
         private ItemFilter _itemFilter;
         private PurchaseWindow _purchaseWindowHideout;
         private PurchaseWindow _purchaseWindow;
         public NPCInvWithLinq()
         {
-            Name = "NPCInvWithLinq";
-            _itemLabels = new TimeCache<List<ItemData>>(UpdateCurrentTradeWindow, 50);
+            Name = "NPC Inv With Linq";
+            _itemLabels = new TimeCache<List<CustomItemData>>(UpdateCurrentTradeWindow, 50);
         }
         public override bool Initialise()
         {
@@ -92,10 +93,10 @@ namespace NPCInvWithLinq
             }
         }
 
-        private List<ItemData> UpdateCurrentTradeWindow()
+        private List<CustomItemData> UpdateCurrentTradeWindow()
         {
             if (_purchaseWindowHideout == null || _purchaseWindow == null)
-                return new List<ItemData>();
+                return new List<CustomItemData>();
 
             PurchaseWindow purchaseWindowItems = null;
             WorldArea currentWorldArea = GameController.Game.IngameState.Data.CurrentWorldArea;
@@ -106,7 +107,7 @@ namespace NPCInvWithLinq
                 purchaseWindowItems = _purchaseWindow;
 
             if (purchaseWindowItems == null)
-                return new List<ItemData>();
+                return new List<CustomItemData>();
 
             IList<NormalInventoryItem> VendorContainer = purchaseWindowItems?.TabContainer?.VisibleStash?.VisibleInventoryItems;
 
@@ -114,12 +115,12 @@ namespace NPCInvWithLinq
             var labels = purchaseWindowItems.TabContainer;
 
             return VendorContainer.ToList().Where(x => x.IsVisible && x.Item?.Path != null)
-                .Select(x => new ItemData(x.Item, GameController.Files, x.GetClientRectCache))
+                .Select(x => new CustomItemData(x.Item, GameController.Files, x.GetClientRectCache))
                 .ToList();
         }
         private bool ItemInFilter(ItemData item)
         {
-            return (_itemFilter?.Matches(item, true) ?? false);
+            return (_itemFilter?.Matches(item, false) ?? false);
         }
     }
 }
