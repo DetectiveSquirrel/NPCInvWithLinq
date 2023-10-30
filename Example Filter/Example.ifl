@@ -1,0 +1,8 @@
+ItemStats[GameStat.BaseMovementVelocityPct]>=10 // 10% ms
+
+BaseName.Contains("Invitation")
+
+BaseName.Contains("Cortex")
+
+//Gamblin
+!IsIdentified && BaseName.Contains("Leather Belt") // Unid leather belt in gamba
