@@ -1,4 +1,5 @@
 ﻿using ExileCore;
+using ExileCore.PoEMemory;
 using ExileCore.PoEMemory.Elements;
 using ExileCore.PoEMemory.Elements.InventoryElements;
 using ExileCore.PoEMemory.MemoryObjects;
@@ -17,6 +18,7 @@ namespace NPCInvWithLinq
         private ItemFilter _itemFilter;
         private PurchaseWindow _purchaseWindowHideout;
         private PurchaseWindow _purchaseWindow;
+
         public NPCInvWithLinq()
         {
             Name = "NPC Inv With Linq";
@@ -39,6 +41,10 @@ namespace NPCInvWithLinq
         {
             _purchaseWindowHideout = GameController.Game.IngameState.IngameUi.PurchaseWindowHideout;
             _purchaseWindow = GameController.Game.IngameState.IngameUi.PurchaseWindow;
+            Element _hoveredItem = null;
+
+            if (GameController.IngameState.UIHover is { Address: not 0 } h && h.Entity.IsValid)
+                _hoveredItem = GameController.IngameState.UIHover;
 
             if (!_purchaseWindowHideout.IsVisible && !_purchaseWindow.IsVisible)
                 return;
@@ -48,15 +54,21 @@ namespace NPCInvWithLinq
                 if (item == null) continue;
                 if (!ItemInFilter(item)) continue;
 
-                Graphics.DrawFrame(item.ClientRectangleCache, Settings.FrameColor, Settings.FrameThickness);
+                if (_hoveredItem != null && _hoveredItem.Tooltip.GetClientRectCache.Intersects(item.ClientRectangleCache) && _hoveredItem.Entity.Address != item.Entity.Address)
+                {
+                    var dimmedColor = Settings.FrameColor.Value; dimmedColor.A = 45;
+                    Graphics.DrawFrame(item.ClientRectangleCache, dimmedColor, Settings.FrameThickness);
+                }
+                else
+                {
+                    Graphics.DrawFrame(item.ClientRectangleCache, Settings.FrameColor, Settings.FrameThickness);
+                }
             }
 
-            if (Settings.FilterTest.Value is { Length: > 0 } &&
-                GameController.IngameState.UIHover is { Address: not 0 } h &&
-                h.Entity.IsValid)
+            if (Settings.FilterTest.Value is { Length: > 0 } && _hoveredItem != null)
             {
                 var f = ItemFilter.LoadFromString(Settings.FilterTest);
-                var matched = f.Matches(new ItemData(h.Entity, GameController.Files));
+                var matched = f.Matches(new ItemData(_hoveredItem.Entity, GameController.Files));
                 DebugWindow.LogMsg($"Debug item match on hover: {matched}");
             }
         }
