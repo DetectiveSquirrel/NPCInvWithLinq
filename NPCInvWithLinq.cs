@@ -1,7 +1,6 @@
 ﻿using ExileCore;
 using ExileCore.PoEMemory;
 using ExileCore.PoEMemory.Elements;
-using ExileCore.PoEMemory.Elements.InventoryElements;
 using ExileCore.PoEMemory.MemoryObjects;
 using ExileCore.Shared.Cache;
 using ExileCore.Shared.Helpers;
@@ -116,23 +115,21 @@ namespace NPCInvWithLinq
                 }
             }
 
-            PurchaseWindow purchaseWindowItems = null;
-            if (_purchaseWindowHideout.IsVisible)
-                purchaseWindowItems = _purchaseWindowHideout;
-            else if (_purchaseWindow.IsVisible)
-                purchaseWindowItems = _purchaseWindow;
+            PurchaseWindow purchaseWindowItems = _purchaseWindowHideout.IsVisible ? _purchaseWindowHideout : _purchaseWindow;
 
-            var StartingPoint = purchaseWindowItems.TabContainer.GetClientRectCache.TopRight.ToVector2Num();
-            StartingPoint.X += 15;
-            SharpDX.RectangleF serverItemsBox = new SharpDX.RectangleF();
-            var LongestText = unSeenItems.OrderByDescending(s => s.Length).FirstOrDefault();
-            var textHeight = Graphics.MeasureText(LongestText);
+            var startingPoint = purchaseWindowItems.TabContainer.GetClientRectCache.TopRight.ToVector2Num();
+            startingPoint.X += 15;
 
-            serverItemsBox.Height = textHeight.Y * unSeenItems.Count;
-            serverItemsBox.Width = textHeight.X;
-            serverItemsBox.X = StartingPoint.X;
-            serverItemsBox.Y = StartingPoint.Y;
+            var longestText = unSeenItems.OrderByDescending(s => s.Length).FirstOrDefault();
+            var textHeight = Graphics.MeasureText(longestText);
 
+            var serverItemsBox = new SharpDX.RectangleF
+            {
+                Height = textHeight.Y * unSeenItems.Count,
+                Width = textHeight.X,
+                X = startingPoint.X,
+                Y = startingPoint.Y
+            };
 
             var boxColor = new SharpDX.Color(0, 0, 0, 150);
             var textColor = new SharpDX.Color(255, 255, 255, 230);
@@ -144,9 +141,10 @@ namespace NPCInvWithLinq
                 for (int i = 0; i < unSeenItems.Count; i++)
                 {
                     string stringItem = unSeenItems[i];
-                    Graphics.DrawText(stringItem, new Vector2(StartingPoint.X, StartingPoint.Y + (textHeight.Y * i)), textColor);
+                    Graphics.DrawText(stringItem, new Vector2(startingPoint.X, startingPoint.Y + (textHeight.Y * i)), textColor);
                 }
             }
+
 
 
             if (Settings.FilterTest.Value is { Length: > 0 } && _hoveredItem != null)
@@ -225,7 +223,7 @@ namespace NPCInvWithLinq
                         .Select(x => new CustomItemData(x.Item, GameController.Files, x.GetClientRectCache))
                         .ToList(),
 
-                    Title = $"-{i+1}-",
+                    Title = $"-{i + 1}-",
 
                     IsVisible = purchaseWindowItems.TabContainer.AllInventories[i].IsVisible
                 };
