@@ -4,11 +4,13 @@ using ExileCore.PoEMemory.Elements;
 using ExileCore.PoEMemory.Elements.InventoryElements;
 using ExileCore.PoEMemory.MemoryObjects;
 using ExileCore.Shared.Cache;
+using ExileCore.Shared.Helpers;
 using ItemFilterLibrary;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Numerics;
 using static NPCInvWithLinq.ServerAndStashWindow;
 
 namespace NPCInvWithLinq
@@ -97,14 +99,55 @@ namespace NPCInvWithLinq
                 else
                 {
                     // not visible part here (add to a list of items to draw?)
+                    var tabHadWantedItem = false;
                     foreach (var hiddenItem in storedTab.ServerItems)
                     {
                         if (hiddenItem == null) continue;
                         if (!ItemInFilter(hiddenItem)) continue;
-                        unSeenItems.Add($"{storedTab.Title} ({hiddenItem.Name})");
+                        if (!tabHadWantedItem)
+                            unSeenItems.Add($"Tab [{storedTab.Title}]");
+
+                        unSeenItems.Add($"\t{hiddenItem.Name}");
+
+                        tabHadWantedItem = true;
                     }
+                    if (tabHadWantedItem)
+                        unSeenItems.Add($"");
                 }
             }
+
+            PurchaseWindow purchaseWindowItems = null;
+            if (_purchaseWindowHideout.IsVisible)
+                purchaseWindowItems = _purchaseWindowHideout;
+            else if (_purchaseWindow.IsVisible)
+                purchaseWindowItems = _purchaseWindow;
+
+            var StartingPoint = purchaseWindowItems.TabContainer.GetClientRectCache.TopRight.ToVector2Num();
+            StartingPoint.X += 15;
+            SharpDX.RectangleF serverItemsBox = new SharpDX.RectangleF();
+            var LongestText = unSeenItems.OrderByDescending(s => s.Length).FirstOrDefault();
+            var textHeight = Graphics.MeasureText(LongestText);
+
+            serverItemsBox.Height = textHeight.Y * unSeenItems.Count;
+            serverItemsBox.Width = textHeight.X;
+            serverItemsBox.X = StartingPoint.X;
+            serverItemsBox.Y = StartingPoint.Y;
+
+
+            var boxColor = new SharpDX.Color(0, 0, 0, 150);
+            var textColor = new SharpDX.Color(255, 255, 255, 230);
+
+            if (_hoveredItem == null || !_hoveredItem.Tooltip.GetClientRectCache.Intersects(serverItemsBox))
+            {
+                Graphics.DrawBox(serverItemsBox, boxColor);
+
+                for (int i = 0; i < unSeenItems.Count; i++)
+                {
+                    string stringItem = unSeenItems[i];
+                    Graphics.DrawText(stringItem, new Vector2(StartingPoint.X, StartingPoint.Y + (textHeight.Y * i)), textColor);
+                }
+            }
+
 
             if (Settings.FilterTest.Value is { Length: > 0 } && _hoveredItem != null)
             {
