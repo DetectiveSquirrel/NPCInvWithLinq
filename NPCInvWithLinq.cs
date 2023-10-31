@@ -9,20 +9,39 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using static NPCInvWithLinq.ServerAndStashWindow;
 
 namespace NPCInvWithLinq
 {
+    public class ServerAndStashWindow
+    {
+        public IList<WindowSet> Tabs { get; set; }
+        public class WindowSet
+        {
+            public int Index { get; set; }
+            public string Title { get; set; }
+            public bool IsVisible { get; set; }
+            public List<CustomItemData> ServerItems { get; set; }
+            public List<CustomItemData> TradeWindowItems { get; set; }
+            public override string ToString()
+            {
+                return $"Tab({Title}) is Index({Index}) IsVisible({IsVisible}) [ServerItems({ServerItems.Count}), TradeWindowItems({TradeWindowItems.Count})]";
+            }
+        }
+    }
+
     public class NPCInvWithLinq : BaseSettingsPlugin<NPCInvWithLinqSettings>
     {
-        private readonly TimeCache<List<CustomItemData>> _itemLabels;
+        private readonly TimeCache<List<WindowSet>> _storedStashAndWindows;
         private ItemFilter _itemFilter;
         private PurchaseWindow _purchaseWindowHideout;
         private PurchaseWindow _purchaseWindow;
+        private IList<InventoryHolder> _npcInventories;
 
         public NPCInvWithLinq()
         {
             Name = "NPC Inv With Linq";
-            _itemLabels = new TimeCache<List<CustomItemData>>(UpdateCurrentTradeWindow, 50);
+            _storedStashAndWindows = new TimeCache<List<WindowSet>>(UpdateCurrentTradeWindow, 50);
         }
         public override bool Initialise()
         {
@@ -34,13 +53,15 @@ namespace NPCInvWithLinq
 
         public override Job Tick()
         {
+            _purchaseWindowHideout = GameController.Game.IngameState.IngameUi.PurchaseWindowHideout;
+            _purchaseWindow = GameController.Game.IngameState.IngameUi.PurchaseWindow;
+            _npcInventories = GameController.Game.IngameState.ServerData.NPCInventories;
+
             return null;
         }
 
         public override void Render()
         {
-            _purchaseWindowHideout = GameController.Game.IngameState.IngameUi.PurchaseWindowHideout;
-            _purchaseWindow = GameController.Game.IngameState.IngameUi.PurchaseWindow;
             Element _hoveredItem = null;
 
             if (GameController.IngameState.UIHover is { Address: not 0 } h && h.Entity.IsValid)
@@ -49,19 +70,39 @@ namespace NPCInvWithLinq
             if (!_purchaseWindowHideout.IsVisible && !_purchaseWindow.IsVisible)
                 return;
 
-            foreach (var item in _itemLabels.Value)
-            {
-                if (item == null) continue;
-                if (!ItemInFilter(item)) continue;
+            // Draw open inventory and then for non visible inventories add items to a list that are in teh filter and draw on the side in an imgui window
+            List<string> unSeenItems = new List<string>();
 
-                if (_hoveredItem != null && _hoveredItem.Tooltip.GetClientRectCache.Intersects(item.ClientRectangleCache) && _hoveredItem.Entity.Address != item.Entity.Address)
+            foreach (var storedTab in _storedStashAndWindows.Value)
+            {
+                if (storedTab.IsVisible)
                 {
-                    var dimmedColor = Settings.FrameColor.Value; dimmedColor.A = 45;
-                    Graphics.DrawFrame(item.ClientRectangleCache, dimmedColor, Settings.FrameThickness);
+                    //Hand is visible part here (add to a list of items to draw?)
+                    foreach (var visibleItem in storedTab.TradeWindowItems)
+                    {
+                        if (visibleItem == null) continue;
+                        if (!ItemInFilter(visibleItem)) continue;
+
+                        if (_hoveredItem != null && _hoveredItem.Tooltip.GetClientRectCache.Intersects(visibleItem.ClientRectangleCache) && _hoveredItem.Entity.Address != visibleItem.Entity.Address)
+                        {
+                            var dimmedColor = Settings.FrameColor.Value; dimmedColor.A = 45;
+                            Graphics.DrawFrame(visibleItem.ClientRectangleCache, dimmedColor, Settings.FrameThickness);
+                        }
+                        else
+                        {
+                            Graphics.DrawFrame(visibleItem.ClientRectangleCache, Settings.FrameColor, Settings.FrameThickness);
+                        }
+                    }
                 }
                 else
                 {
-                    Graphics.DrawFrame(item.ClientRectangleCache, Settings.FrameColor, Settings.FrameThickness);
+                    // not visible part here (add to a list of items to draw?)
+                    foreach (var hiddenItem in storedTab.ServerItems)
+                    {
+                        if (hiddenItem == null) continue;
+                        if (!ItemInFilter(hiddenItem)) continue;
+                        unSeenItems.Add($"{storedTab.Title} ({hiddenItem.Name})");
+                    }
                 }
             }
 
@@ -105,10 +146,12 @@ namespace NPCInvWithLinq
             }
         }
 
-        private List<CustomItemData> UpdateCurrentTradeWindow()
+        private List<WindowSet> UpdateCurrentTradeWindow()
         {
+            var newTabSet = new List<WindowSet>();
+
             if (_purchaseWindowHideout == null || _purchaseWindow == null)
-                return new List<CustomItemData>();
+                return newTabSet;
 
             PurchaseWindow purchaseWindowItems = null;
             WorldArea currentWorldArea = GameController.Game.IngameState.Data.CurrentWorldArea;
@@ -119,20 +162,39 @@ namespace NPCInvWithLinq
                 purchaseWindowItems = _purchaseWindow;
 
             if (purchaseWindowItems == null)
-                return new List<CustomItemData>();
+                return newTabSet;
 
-            IList<NormalInventoryItem> VendorContainer = purchaseWindowItems?.TabContainer?.VisibleStash?.VisibleInventoryItems;
+            for (int i = 0; i < _npcInventories.Count; i++)
+            {
+                var newTab = new WindowSet
+                {
+                    Index = i,
 
+                    ServerItems = _npcInventories[i].Inventory.Items
+                        .ToList()
+                        .Where(x => x?.Path != null)
+                        .Select(x => new CustomItemData(x, GameController.Files))
+                        .ToList(),
 
-            var labels = purchaseWindowItems.TabContainer;
+                    TradeWindowItems = purchaseWindowItems.TabContainer.AllInventories[i].VisibleInventoryItems
+                        .ToList()
+                        .Where(x => x.Item?.Path != null)
+                        .Select(x => new CustomItemData(x.Item, GameController.Files, x.GetClientRectCache))
+                        .ToList(),
 
-            return VendorContainer.ToList().Where(x => x.IsVisible && x.Item?.Path != null)
-                .Select(x => new CustomItemData(x.Item, GameController.Files, x.GetClientRectCache))
-                .ToList();
+                    Title = $"-{i+1}-",
+
+                    IsVisible = purchaseWindowItems.TabContainer.AllInventories[i].IsVisible
+                };
+                newTabSet.Add(newTab);
+            }
+
+            return newTabSet;
         }
+
         private bool ItemInFilter(ItemData item)
         {
-            return (_itemFilter?.Matches(item, false) ?? false);
+            return _itemFilter?.Matches(item, false) ?? false;
         }
     }
 }

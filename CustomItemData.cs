@@ -4,6 +4,10 @@ using ItemFilterLibrary;
 
 public class CustomItemData : ItemData
 {
+    public CustomItemData(Entity queriedItem, FilesContainer fs) : base(queriedItem, fs)
+    {
+
+    }
     public CustomItemData(Entity queriedItem, FilesContainer fs, SharpDX.RectangleF GetClientRectCache) : base(queriedItem, fs)
     {
         ClientRectangleCache = GetClientRectCache;
