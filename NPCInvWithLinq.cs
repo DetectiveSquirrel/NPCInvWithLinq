@@ -122,11 +122,12 @@ namespace NPCInvWithLinq
 
             var longestText = unSeenItems.OrderByDescending(s => s.Length).FirstOrDefault();
             var textHeight = Graphics.MeasureText(longestText);
+            var textPadding = 10;
 
             var serverItemsBox = new SharpDX.RectangleF
             {
                 Height = textHeight.Y * unSeenItems.Count,
-                Width = textHeight.X,
+                Width = textHeight.X + (textPadding * 2),
                 X = startingPoint.X,
                 Y = startingPoint.Y
             };
@@ -141,7 +142,7 @@ namespace NPCInvWithLinq
                 for (int i = 0; i < unSeenItems.Count; i++)
                 {
                     string stringItem = unSeenItems[i];
-                    Graphics.DrawText(stringItem, new Vector2(startingPoint.X, startingPoint.Y + (textHeight.Y * i)), textColor);
+                    Graphics.DrawText(stringItem, new Vector2(startingPoint.X + textPadding, startingPoint.Y + (textHeight.Y * i)), textColor);
                 }
             }
 
