@@ -4,8 +4,10 @@ using ExileCore.PoEMemory.Elements;
 using ExileCore.PoEMemory.MemoryObjects;
 using ExileCore.Shared.Cache;
 using ExileCore.Shared.Helpers;
+using ImGuiNET;
 using ItemFilterLibrary;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -34,7 +36,7 @@ namespace NPCInvWithLinq
     public class NPCInvWithLinq : BaseSettingsPlugin<NPCInvWithLinqSettings>
     {
         private readonly TimeCache<List<WindowSet>> _storedStashAndWindows;
-        private ItemFilter _itemFilter;
+        private List<ItemFilter> _itemFilters;
         private PurchaseWindow _purchaseWindowHideout;
         private PurchaseWindow _purchaseWindow;
         private IList<InventoryHolder> _npcInventories;
@@ -46,7 +48,6 @@ namespace NPCInvWithLinq
         }
         public override bool Initialise()
         {
-            Settings.FilterFile.OnValueSelected = _ => LoadRuleFiles();
             Settings.ReloadFilters.OnPressed = LoadRuleFiles;
             LoadRuleFiles();
             return true;
@@ -156,9 +157,54 @@ namespace NPCInvWithLinq
             }
         }
 
+        public record FilterDirItem(string Name, string Path);
+
+        public override void DrawSettings()
+        {
+            base.DrawSettings();
+
+            if (ImGui.Button("Open Build Folder"))
+                Process.Start("explorer.exe", ConfigDirectory);
+
+            ImGui.Separator();
+
+            ImGui.BulletText("Select Rules To Load");
+
+            foreach (var rule in Settings.NPCInvRules)
+            {
+                var refToggle = rule.Enabled;
+                if (ImGui.Checkbox(rule.Name, ref refToggle))
+                {
+                    rule.Enabled = refToggle;
+                }
+            }
+        }
+
+        private void PopulateFilterList(string pickitConfigFileDirectory, List<NPCInvRule> tempPickitRules, List<FilterDirItem> itemList)
+        {
+            foreach (var drItem in new DirectoryInfo(pickitConfigFileDirectory).GetFiles("*.ifl"))
+            {
+                itemList.Add(new FilterDirItem(drItem.Name, drItem.FullName));
+            }
+
+            if (itemList.Count > 0)
+            {
+                tempPickitRules.RemoveAll(rule => !itemList.Any(item => item.Name == rule.Name));
+
+                foreach (var item in itemList)
+                {
+                    if (!tempPickitRules.Any(rule => rule.Name == item.Name))
+                    {
+                        tempPickitRules.Add(new NPCInvRule(item.Name, item.Path, false));
+                    }
+                }
+            }
+            Settings.NPCInvRules = tempPickitRules;
+        }
+
         private void LoadRuleFiles()
         {
-            var pickitConfigFileDirectory = Path.Combine(ConfigDirectory);
+            var pickitConfigFileDirectory = ConfigDirectory;
 
             if (!Directory.Exists(pickitConfigFileDirectory))
             {
@@ -166,26 +212,32 @@ namespace NPCInvWithLinq
                 return;
             }
 
-            var dirInfo = new DirectoryInfo(pickitConfigFileDirectory);
-            Settings.FilterFile.Values = dirInfo.GetFiles("*.ifl").Select(x => Path.GetFileNameWithoutExtension(x.Name)).ToList();
-            if (Settings.FilterFile.Values.Any() && !Settings.FilterFile.Values.Contains(Settings.FilterFile.Value))
-            {
-                Settings.FilterFile.Value = Settings.FilterFile.Values.First();
-            }
+            List<ItemFilter> tempFilters = new List<ItemFilter>();
+            var tempPickitRules = Settings.NPCInvRules;
+            var itemList = new List<FilterDirItem>();
+            PopulateFilterList(pickitConfigFileDirectory, tempPickitRules, itemList);
 
-            if (!string.IsNullOrWhiteSpace(Settings.FilterFile.Value))
+            tempPickitRules = Settings.NPCInvRules;
+            if (Settings.NPCInvRules.Count > 0)
             {
-                var filterFilePath = Path.Combine(pickitConfigFileDirectory, $"{Settings.FilterFile.Value}.ifl");
-                if (File.Exists(filterFilePath))
+                tempPickitRules.RemoveAll(rule => !itemList.Any(item => item.Name == rule.Name));
+
+                foreach (var item in tempPickitRules)
                 {
-                    _itemFilter = ItemFilter.LoadFromPath(filterFilePath);
-                }
-                else
-                {
-                    _itemFilter = null;
-                    LogError("Item filter file not found, plugin will not work");
+                    if (!item.Enabled)
+                        continue;
+
+                    if (File.Exists(item.Location))
+                    {
+                        tempFilters.Add(ItemFilter.LoadFromPath(item.Location));
+                    }
+                    else
+                    {
+                        LogError($"File '{item.Name}' not found.");
+                    }
                 }
             }
+            _itemFilters = tempFilters;
         }
 
         private List<WindowSet> UpdateCurrentTradeWindow()
@@ -236,7 +288,7 @@ namespace NPCInvWithLinq
 
         private bool ItemInFilter(ItemData item)
         {
-            return _itemFilter?.Matches(item, false) ?? false;
+            return _itemFilters?.Any(filter => filter.Matches(item)) ?? false;
         }
     }
 }
