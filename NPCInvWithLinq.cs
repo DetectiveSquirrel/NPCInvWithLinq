@@ -24,6 +24,7 @@ namespace NPCInvWithLinq
             public int Index { get; set; }
             public string Title { get; set; }
             public bool IsVisible { get; set; }
+            public Element TabNameElement { get; set; }
             public List<CustomItemData> ServerItems { get; set; }
             public List<CustomItemData> TradeWindowItems { get; set; }
             public override string ToString()
@@ -105,7 +106,12 @@ namespace NPCInvWithLinq
                         if (hiddenItem == null) continue;
                         if (!ItemInFilter(hiddenItem)) continue;
                         if (!tabHadWantedItem)
+                        {
                             unSeenItems.Add($"Tab [{storedTab.Title}]");
+
+                            if (Settings.DrawOnTabLabels)
+                                Graphics.DrawFrame(storedTab.TabNameElement.GetClientRectCache, Settings.FrameColor, Settings.FrameThickness);
+                        }
 
                         unSeenItems.Add($"\t{hiddenItem.Name}");
 
@@ -280,6 +286,11 @@ namespace NPCInvWithLinq
 
                     IsVisible = purchaseWindowItems.TabContainer.AllInventories[i].IsVisible
                 };
+
+                newTab.TabNameElement = purchaseWindowItems.TabContainer.TabSwitchBar.Children.ToList()
+                .Where(x => x?.GetChildAtIndex(0)?.GetChildAtIndex(1)?.Text == newTab.Title)
+                .Select(x => x).FirstOrDefault();
+
                 newTabSet.Add(newTab);
             }
 

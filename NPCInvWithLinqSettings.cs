@@ -9,6 +9,7 @@ namespace NPCInvWithLinq
     public class NPCInvWithLinqSettings : ISettings
     {
         public ToggleNode Enable { get; set; } = new ToggleNode(false);
+        public ToggleNode DrawOnTabLabels { get; set; } = new ToggleNode(true);
         public ColorNode FrameColor { get; set; } = new ColorNode(Color.Red);
         public RangeNode<int> FrameThickness { get; set; } = new RangeNode<int>(1, 1, 20);
 
