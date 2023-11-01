@@ -153,8 +153,6 @@ namespace NPCInvWithLinq
                 }
             }
 
-
-
             if (Settings.FilterTest.Value is { Length: > 0 } && _hoveredItem != null)
             {
                 var f = ItemFilter.LoadFromString(Settings.FilterTest);
@@ -175,39 +173,36 @@ namespace NPCInvWithLinq
             ImGui.Separator();
 
             ImGui.BulletText("Select Rules To Load");
+            ImGui.BulletText("Ordering rule sets so general items will match first rather than last will improve performance");
 
-            foreach (var rule in Settings.NPCInvRules)
+            var tempNPCInvRules = new List<NPCInvRule>(Settings.NPCInvRules); // Create a copy
+
+            for (int i = 0; i < tempNPCInvRules.Count; i++)
             {
-                var refToggle = rule.Enabled;
-                if (ImGui.Checkbox(rule.Name, ref refToggle))
+                if (ImGui.ArrowButton($"##upButton{i}", ImGuiDir.Up) && i > 0) // Check if i is greater than 0
                 {
-                    rule.Enabled = refToggle;
+                    var temp = tempNPCInvRules[i];
+                    tempNPCInvRules[i] = tempNPCInvRules[i - 1];
+                    tempNPCInvRules[i - 1] = temp;
+                }
+                ImGui.SameLine();
+                if (ImGui.ArrowButton($"##downButton{i}", ImGuiDir.Down) && i < tempNPCInvRules.Count - 1) // Check if i is less than tempNPCInvRules.Count - 1
+                {
+                    var temp = tempNPCInvRules[i];
+                    tempNPCInvRules[i] = tempNPCInvRules[i + 1];
+                    tempNPCInvRules[i + 1] = temp;
+                }
+                ImGui.SameLine();
+                var refToggle = tempNPCInvRules[i].Enabled;
+                if (ImGui.Checkbox($"{tempNPCInvRules[i].Name}##checkbox{i}", ref refToggle))
+                {
+                    tempNPCInvRules[i].Enabled = refToggle;
                 }
             }
+
+            Settings.NPCInvRules = tempNPCInvRules; // Set the modified list to the original one
+
         }
-
-        private void PopulateFilterList(string pickitConfigFileDirectory, List<NPCInvRule> tempPickitRules, List<FilterDirItem> itemList)
-        {
-            foreach (var drItem in new DirectoryInfo(pickitConfigFileDirectory).GetFiles("*.ifl"))
-            {
-                itemList.Add(new FilterDirItem(drItem.Name, drItem.FullName));
-            }
-
-            if (itemList.Count > 0)
-            {
-                tempPickitRules.RemoveAll(rule => !itemList.Any(item => item.Name == rule.Name));
-
-                foreach (var item in itemList)
-                {
-                    if (!tempPickitRules.Any(rule => rule.Name == item.Name))
-                    {
-                        tempPickitRules.Add(new NPCInvRule(item.Name, item.Path, false));
-                    }
-                }
-            }
-            Settings.NPCInvRules = tempPickitRules;
-        }
-
         private void LoadRuleFiles()
         {
             var pickitConfigFileDirectory = ConfigDirectory;
@@ -219,30 +214,44 @@ namespace NPCInvWithLinq
             }
 
             List<ItemFilter> tempFilters = new List<ItemFilter>();
-            var tempPickitRules = Settings.NPCInvRules;
             var itemList = new List<FilterDirItem>();
-            PopulateFilterList(pickitConfigFileDirectory, tempPickitRules, itemList);
+            var tempPickitRules = new List<NPCInvRule>(Settings.NPCInvRules); // Create a copy
+            var toRemove = new List<NPCInvRule>();
 
-            tempPickitRules = Settings.NPCInvRules;
-            if (Settings.NPCInvRules.Count > 0)
+            foreach (var drItem in new DirectoryInfo(pickitConfigFileDirectory).GetFiles("*.ifl"))
             {
-                tempPickitRules.RemoveAll(rule => !itemList.Any(item => item.Name == rule.Name));
-
-                foreach (var item in tempPickitRules)
+                var existingRule = tempPickitRules.FirstOrDefault(rule => rule.Location == drItem.FullName);
+                if (existingRule != null)
                 {
-                    if (!item.Enabled)
-                        continue;
-
-                    if (File.Exists(item.Location))
-                    {
-                        tempFilters.Add(ItemFilter.LoadFromPath(item.Location));
-                    }
-                    else
-                    {
-                        LogError($"File '{item.Name}' not found.");
-                    }
+                    tempPickitRules.Add(existingRule);
                 }
+                else
+                {
+                    Settings.NPCInvRules.Add(new NPCInvRule(drItem.Name, drItem.FullName, false));
+                }
+                itemList.Add(new FilterDirItem(drItem.Name, drItem.FullName));
             }
+
+            foreach (var rule in tempPickitRules)
+            {
+                if (!File.Exists(rule.Location))
+                {
+                    toRemove.Add(rule);
+                    LogError($"File '{rule.Name}' not found.");
+                    continue;
+                }
+
+                if (!rule.Enabled)
+                    continue;
+
+                tempFilters.Add(ItemFilter.LoadFromPath(rule.Location));
+            }
+
+            foreach (var rule in toRemove)
+            {
+                Settings.NPCInvRules.Remove(rule);
+            }
+
             _itemFilters = tempFilters;
         }
 
