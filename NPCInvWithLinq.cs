@@ -186,12 +186,16 @@ namespace NPCInvWithLinq
                     tempNPCInvRules[i - 1] = temp;
                 }
                 ImGui.SameLine();
+                ImGui.Text(" ");
+                ImGui.SameLine();
                 if (ImGui.ArrowButton($"##downButton{i}", ImGuiDir.Down) && i < tempNPCInvRules.Count - 1) // Check if i is less than tempNPCInvRules.Count - 1
                 {
                     var temp = tempNPCInvRules[i];
                     tempNPCInvRules[i] = tempNPCInvRules[i + 1];
                     tempNPCInvRules[i + 1] = temp;
                 }
+                ImGui.SameLine();
+                ImGui.Text(" - ");
                 ImGui.SameLine();
                 var refToggle = tempNPCInvRules[i].Enabled;
                 if (ImGui.Checkbox($"{tempNPCInvRules[i].Name}##checkbox{i}", ref refToggle))
