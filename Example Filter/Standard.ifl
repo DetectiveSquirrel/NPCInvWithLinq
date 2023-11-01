@@ -1,0 +1,11 @@
+BaseName.Contains("Invitation")
+
+BaseName.Contains("Cortex")
+
+ModsInfo.ItemMods.Any(Name == "MapAreaContainsEssences")
+
+// !IsIdentified && BaseName.Contains("Leather Belt")
+
+SocketInfo.SocketNumber == 6
+
+SocketInfo.LargestLinkSize >= 4
