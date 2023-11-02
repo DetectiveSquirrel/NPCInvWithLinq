@@ -73,7 +73,7 @@ namespace NPCInvWithLinq
             if (!_purchaseWindowHideout.IsVisible && !_purchaseWindow.IsVisible)
                 return;
 
-            List<string> unSeenItems = new List<string>();
+            List<string> unSeenItems = new List<string>(); // Initialize the list here
 
             foreach (var storedTab in _storedStashAndWindows.Value)
             {
@@ -211,9 +211,7 @@ namespace NPCInvWithLinq
                 .Select(drItem =>
                 {
                     var existingRule = tempPickitRules.FirstOrDefault(rule => rule.Location == drItem.FullName);
-                    if (existingRule != null)
-                        tempPickitRules.Add(existingRule);
-                    else
+                    if (existingRule == null)
                         Settings.NPCInvRules.Add(new NPCInvRule(drItem.Name, drItem.FullName, false));
                     return new FilterDirItem(drItem.Name, drItem.FullName);
                 })
