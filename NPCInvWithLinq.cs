@@ -85,14 +85,9 @@ namespace NPCInvWithLinq
                         if (ItemInFilter(visibleItem))
                         {
                             if (_hoveredItem != null && _hoveredItem.Tooltip.GetClientRectCache.Intersects(visibleItem.ClientRectangleCache) && _hoveredItem.Entity.Address != visibleItem.Entity.Address)
-                            {
-                                var dimmedColor = Settings.FrameColor.Value; dimmedColor.A = 45;
-                                Graphics.DrawFrame(visibleItem.ClientRectangleCache, dimmedColor, Settings.FrameThickness);
-                            }
+                                Graphics.DrawFrame(visibleItem.ClientRectangleCache, Settings.FrameColor.Value with { A = 45 }, Settings.FrameThickness);
                             else
-                            {
                                 Graphics.DrawFrame(visibleItem.ClientRectangleCache, Settings.FrameColor, Settings.FrameThickness);
-                            }
                         }
                     }
                 }
@@ -108,7 +103,10 @@ namespace NPCInvWithLinq
                             {
                                 unSeenItems.Add($"Tab [{storedTab.Title}]");
                                 if (Settings.DrawOnTabLabels)
-                                    Graphics.DrawFrame(storedTab.TabNameElement.GetClientRectCache, Settings.FrameColor, Settings.FrameThickness);
+                                    if (_hoveredItem == null || !_hoveredItem.Tooltip.GetClientRectCache.Intersects(storedTab.TabNameElement.GetClientRectCache))
+                                        Graphics.DrawFrame(storedTab.TabNameElement.GetClientRectCache, Settings.FrameColor, Settings.FrameThickness);
+                                    else
+                                        Graphics.DrawFrame(storedTab.TabNameElement.GetClientRectCache, Settings.FrameColor.Value with { A = 45 }, Settings.FrameThickness);
                             }
                             unSeenItems.Add($"\t{hiddenItem.Name}");
                             tabHadWantedItem = true;
