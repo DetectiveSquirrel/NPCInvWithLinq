@@ -6,6 +6,7 @@ using ExileCore.Shared.Cache;
 using ExileCore.Shared.Helpers;
 using ImGuiNET;
 using ItemFilterLibrary;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -65,60 +66,54 @@ namespace NPCInvWithLinq
 
         public override void Render()
         {
-            Element _hoveredItem = null;
-
-            if (GameController.IngameState.UIHover is { Address: not 0 } h && h.Entity.IsValid)
-                _hoveredItem = GameController.IngameState.UIHover;
+            var _hoveredItem = GameController.IngameState.UIHover?.Address != 0 && GameController.IngameState.UIHover.Entity.IsValid
+                ? GameController.IngameState.UIHover
+                : null;
 
             if (!_purchaseWindowHideout.IsVisible && !_purchaseWindow.IsVisible)
                 return;
 
-            // Draw open inventory and then for non visible inventories add items to a list that are in teh filter and draw on the side in an imgui window
-            List<string> unSeenItems = new List<string>();
+            List<string> unSeenItems = new List<string>(); // Initialize the list here
 
             foreach (var storedTab in _storedStashAndWindows.Value)
             {
                 if (storedTab.IsVisible)
                 {
-                    //Hand is visible part here (add to a list of items to draw?)
                     foreach (var visibleItem in storedTab.TradeWindowItems)
                     {
                         if (visibleItem == null) continue;
-                        if (!ItemInFilter(visibleItem)) continue;
-
-                        if (_hoveredItem != null && _hoveredItem.Tooltip.GetClientRectCache.Intersects(visibleItem.ClientRectangleCache) && _hoveredItem.Entity.Address != visibleItem.Entity.Address)
+                        if (ItemInFilter(visibleItem))
                         {
-                            var dimmedColor = Settings.FrameColor.Value; dimmedColor.A = 45;
-                            Graphics.DrawFrame(visibleItem.ClientRectangleCache, dimmedColor, Settings.FrameThickness);
-                        }
-                        else
-                        {
-                            Graphics.DrawFrame(visibleItem.ClientRectangleCache, Settings.FrameColor, Settings.FrameThickness);
+                            if (_hoveredItem != null && _hoveredItem.Tooltip.GetClientRectCache.Intersects(visibleItem.ClientRectangleCache) && _hoveredItem.Entity.Address != visibleItem.Entity.Address)
+                                Graphics.DrawFrame(visibleItem.ClientRectangleCache, Settings.FrameColor.Value with { A = 45 }, Settings.FrameThickness);
+                            else
+                                Graphics.DrawFrame(visibleItem.ClientRectangleCache, Settings.FrameColor, Settings.FrameThickness);
                         }
                     }
                 }
                 else
                 {
-                    // not visible part here (add to a list of items to draw?)
                     var tabHadWantedItem = false;
                     foreach (var hiddenItem in storedTab.ServerItems)
                     {
                         if (hiddenItem == null) continue;
-                        if (!ItemInFilter(hiddenItem)) continue;
-                        if (!tabHadWantedItem)
+                        if (ItemInFilter(hiddenItem))
                         {
-                            unSeenItems.Add($"Tab [{storedTab.Title}]");
-
-                            if (Settings.DrawOnTabLabels)
-                                Graphics.DrawFrame(storedTab.TabNameElement.GetClientRectCache, Settings.FrameColor, Settings.FrameThickness);
+                            if (!unSeenItems.Contains($"Tab [{storedTab.Title}]"))
+                            {
+                                unSeenItems.Add($"Tab [{storedTab.Title}]");
+                                if (Settings.DrawOnTabLabels)
+                                    if (_hoveredItem == null || !_hoveredItem.Tooltip.GetClientRectCache.Intersects(storedTab.TabNameElement.GetClientRectCache))
+                                        Graphics.DrawFrame(storedTab.TabNameElement.GetClientRectCache, Settings.FrameColor, Settings.FrameThickness);
+                                    else
+                                        Graphics.DrawFrame(storedTab.TabNameElement.GetClientRectCache, Settings.FrameColor.Value with { A = 45 }, Settings.FrameThickness);
+                            }
+                            unSeenItems.Add($"\t{hiddenItem.Name}");
+                            tabHadWantedItem = true;
                         }
-
-                        unSeenItems.Add($"\t{hiddenItem.Name}");
-
-                        tabHadWantedItem = true;
                     }
                     if (tabHadWantedItem)
-                        unSeenItems.Add($"");
+                        unSeenItems.Add("");
                 }
             }
 
@@ -171,7 +166,6 @@ namespace NPCInvWithLinq
                 Process.Start("explorer.exe", ConfigDirectory);
 
             ImGui.Separator();
-
             ImGui.BulletText("Select Rules To Load");
             ImGui.BulletText("Ordering rule sets so general items will match first rather than last will improve performance");
 
@@ -179,30 +173,24 @@ namespace NPCInvWithLinq
 
             for (int i = 0; i < tempNPCInvRules.Count; i++)
             {
-                if (ImGui.ArrowButton($"##upButton{i}", ImGuiDir.Up) && i > 0) // Check if i is greater than 0
-                {
-                    var temp = tempNPCInvRules[i];
-                    tempNPCInvRules[i] = tempNPCInvRules[i - 1];
-                    tempNPCInvRules[i - 1] = temp;
-                }
-                ImGui.SameLine();
-                if (ImGui.ArrowButton($"##downButton{i}", ImGuiDir.Down) && i < tempNPCInvRules.Count - 1) // Check if i is less than tempNPCInvRules.Count - 1
-                {
-                    var temp = tempNPCInvRules[i];
-                    tempNPCInvRules[i] = tempNPCInvRules[i + 1];
-                    tempNPCInvRules[i + 1] = temp;
-                }
-                ImGui.SameLine();
+                if (ImGui.ArrowButton($"##upButton{i}", ImGuiDir.Up) && i > 0)
+                    (tempNPCInvRules[i - 1], tempNPCInvRules[i]) = (tempNPCInvRules[i], tempNPCInvRules[i - 1]);
+
+                ImGui.SameLine(); ImGui.Text(" "); ImGui.SameLine();
+
+                if (ImGui.ArrowButton($"##downButton{i}", ImGuiDir.Down) && i < tempNPCInvRules.Count - 1)
+                    (tempNPCInvRules[i + 1], tempNPCInvRules[i]) = (tempNPCInvRules[i], tempNPCInvRules[i + 1]);
+
+                ImGui.SameLine(); ImGui.Text(" - "); ImGui.SameLine();
+
                 var refToggle = tempNPCInvRules[i].Enabled;
                 if (ImGui.Checkbox($"{tempNPCInvRules[i].Name}##checkbox{i}", ref refToggle))
-                {
                     tempNPCInvRules[i].Enabled = refToggle;
-                }
             }
 
-            Settings.NPCInvRules = tempNPCInvRules; // Set the modified list to the original one
-
+            Settings.NPCInvRules = tempNPCInvRules;
         }
+
         private void LoadRuleFiles()
         {
             var pickitConfigFileDirectory = ConfigDirectory;
@@ -213,97 +201,71 @@ namespace NPCInvWithLinq
                 return;
             }
 
-            List<ItemFilter> tempFilters = new List<ItemFilter>();
-            var itemList = new List<FilterDirItem>();
-            var tempPickitRules = new List<NPCInvRule>(Settings.NPCInvRules); // Create a copy
+            var tempPickitRules = new List<NPCInvRule>(Settings.NPCInvRules);
             var toRemove = new List<NPCInvRule>();
 
-            foreach (var drItem in new DirectoryInfo(pickitConfigFileDirectory).GetFiles("*.ifl"))
-            {
-                var existingRule = tempPickitRules.FirstOrDefault(rule => rule.Location == drItem.FullName);
-                if (existingRule != null)
+            var itemList = new DirectoryInfo(pickitConfigFileDirectory)
+                .GetFiles("*.ifl")
+                .Select(drItem =>
                 {
-                    tempPickitRules.Add(existingRule);
-                }
-                else
-                {
-                    Settings.NPCInvRules.Add(new NPCInvRule(drItem.Name, drItem.FullName, false));
-                }
-                itemList.Add(new FilterDirItem(drItem.Name, drItem.FullName));
-            }
+                    var existingRule = tempPickitRules.FirstOrDefault(rule => rule.Location == drItem.FullName);
+                    if (existingRule == null)
+                        Settings.NPCInvRules.Add(new NPCInvRule(drItem.Name, drItem.FullName, false));
+                    return new FilterDirItem(drItem.Name, drItem.FullName);
+                })
+                .ToList();
 
-            foreach (var rule in tempPickitRules)
+            try
             {
-                if (!File.Exists(rule.Location))
-                {
-                    toRemove.Add(rule);
-                    LogError($"File '{rule.Name}' not found.");
-                    continue;
-                }
+                tempPickitRules
+                    .Where(rule => !File.Exists(rule.Location))
+                    .ToList()
+                    .ForEach(rule => { toRemove.Add(rule); LogError($"File '{rule.Name}' not found."); });
 
-                if (!rule.Enabled)
-                    continue;
+                _itemFilters = tempPickitRules
+                    .Where(rule => rule.Enabled && File.Exists(rule.Location))
+                    .Select(rule => ItemFilter.LoadFromPath(rule.Location))
+                    .ToList();
 
-                tempFilters.Add(ItemFilter.LoadFromPath(rule.Location));
+                toRemove.ForEach(rule => Settings.NPCInvRules.Remove(rule));
             }
-
-            foreach (var rule in toRemove)
+            catch (Exception e)
             {
-                Settings.NPCInvRules.Remove(rule);
+                LogError($"An error occurred while loading rule files: {e.Message}");
             }
-
-            _itemFilters = tempFilters;
         }
 
         private List<WindowSet> UpdateCurrentTradeWindow()
         {
-            var newTabSet = new List<WindowSet>();
-
             if (_purchaseWindowHideout == null || _purchaseWindow == null)
-                return newTabSet;
+                return new List<WindowSet>();
 
-            PurchaseWindow purchaseWindowItems = null;
-            WorldArea currentWorldArea = GameController.Game.IngameState.Data.CurrentWorldArea;
-
-            if (currentWorldArea.IsHideout && _purchaseWindowHideout.IsVisible)
-                purchaseWindowItems = _purchaseWindowHideout;
-            else if (currentWorldArea.IsTown && _purchaseWindow.IsVisible)
-                purchaseWindowItems = _purchaseWindow;
+            PurchaseWindow purchaseWindowItems = (GameController.Game.IngameState.Data.CurrentWorldArea.IsHideout && _purchaseWindowHideout.IsVisible)
+                ? _purchaseWindowHideout
+                : ((GameController.Game.IngameState.Data.CurrentWorldArea.IsTown && _purchaseWindow.IsVisible) ? _purchaseWindow : null);
 
             if (purchaseWindowItems == null)
-                return newTabSet;
+                return new List<WindowSet>();
 
-            for (int i = 0; i < _npcInventories.Count; i++)
+            return _npcInventories.Select((inventory, i) =>
             {
                 var newTab = new WindowSet
                 {
                     Index = i,
-
-                    ServerItems = _npcInventories[i].Inventory.Items
-                        .ToList()
-                        .Where(x => x?.Path != null)
-                        .Select(x => new CustomItemData(x, GameController.Files))
-                        .ToList(),
-
+                    ServerItems = inventory.Inventory.Items.Where(x => x?.Path != null).Select(x => new CustomItemData(x, GameController.Files)).ToList(),
                     TradeWindowItems = purchaseWindowItems.TabContainer.AllInventories[i].VisibleInventoryItems
-                        .ToList()
                         .Where(x => x.Item?.Path != null)
                         .Select(x => new CustomItemData(x.Item, GameController.Files, x.GetClientRectCache))
                         .ToList(),
-
                     Title = $"-{i + 1}-",
-
                     IsVisible = purchaseWindowItems.TabContainer.AllInventories[i].IsVisible
                 };
 
-                newTab.TabNameElement = purchaseWindowItems.TabContainer.TabSwitchBar.Children.ToList()
-                .Where(x => x?.GetChildAtIndex(0)?.GetChildAtIndex(1)?.Text == newTab.Title)
-                .Select(x => x).FirstOrDefault();
+                newTab.TabNameElement = purchaseWindowItems.TabContainer.TabSwitchBar.Children
+                    .FirstOrDefault(x => x?.GetChildAtIndex(0)?.GetChildAtIndex(1)?.Text == newTab.Title);
 
-                newTabSet.Add(newTab);
-            }
-
-            return newTabSet;
+                return newTab;
+            }).ToList();
         }
 
         private bool ItemInFilter(ItemData item)
