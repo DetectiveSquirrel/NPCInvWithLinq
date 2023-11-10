@@ -252,10 +252,10 @@ namespace NPCInvWithLinq
                 var newTab = new WindowSet
                 {
                     Index = i,
-                    ServerItems = inventory.Inventory.Items.Where(x => x?.Path != null).Select(x => new CustomItemData(x, GameController.Files)).ToList(),
+                    ServerItems = inventory.Inventory.Items.Where(x => x?.Path != null).Select(x => new CustomItemData(x, GameController.Files, GameController.Area)).ToList(),
                     TradeWindowItems = purchaseWindowItems.TabContainer.AllInventories[i].VisibleInventoryItems
                         .Where(x => x.Item?.Path != null)
-                        .Select(x => new CustomItemData(x.Item, GameController.Files, x.GetClientRectCache))
+                        .Select(x => new CustomItemData(x.Item, GameController.Files, GameController.Area, x.GetClientRectCache))
                         .ToList(),
                     Title = $"-{i + 1}-",
                     IsVisible = purchaseWindowItems.TabContainer.AllInventories[i].IsVisible
