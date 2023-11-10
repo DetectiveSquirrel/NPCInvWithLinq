@@ -2,18 +2,17 @@
 using ExileCore.PoEMemory;
 using ExileCore.PoEMemory.MemoryObjects;
 using ItemFilterLibrary;
+using System;
 
 public class CustomItemData : ItemData
 {
-    public CustomItemData(Entity queriedItem, FilesContainer fs, AreaController area) : base(queriedItem, fs)
+    public CustomItemData(Entity queriedItem, GameController gc) : base(queriedItem, gc)
     {
-        AreaInfo = new AreaData(area.CurrentArea.RealLevel, area.CurrentArea.Name, area.CurrentArea.Act, area.CurrentArea.Act > 10);
+
     }
-    public CustomItemData(Entity queriedItem, FilesContainer fs, AreaController area, SharpDX.RectangleF GetClientRectCache) : base(queriedItem, fs)
+    public CustomItemData(Entity queriedItem, GameController gc, SharpDX.RectangleF GetClientRectCache) : base(queriedItem, gc)
     {
         ClientRectangleCache = GetClientRectCache;
-
-        AreaInfo = new AreaData(area.CurrentArea.RealLevel, area.CurrentArea.Name, area.CurrentArea.Act, area.CurrentArea.Act > 10);
     }
 
     public SharpDX.RectangleF ClientRectangleCache { get; set; }

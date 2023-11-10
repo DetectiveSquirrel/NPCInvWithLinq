@@ -151,7 +151,7 @@ namespace NPCInvWithLinq
             if (Settings.FilterTest.Value is { Length: > 0 } && _hoveredItem != null)
             {
                 var f = ItemFilter.LoadFromString(Settings.FilterTest);
-                var matched = f.Matches(new ItemData(_hoveredItem.Entity, GameController.Files));
+                var matched = f.Matches(new ItemData(_hoveredItem.Entity, GameController));
                 DebugWindow.LogMsg($"Debug item match on hover: {matched}");
             }
         }
@@ -252,10 +252,10 @@ namespace NPCInvWithLinq
                 var newTab = new WindowSet
                 {
                     Index = i,
-                    ServerItems = inventory.Inventory.Items.Where(x => x?.Path != null).Select(x => new CustomItemData(x, GameController.Files, GameController.Area)).ToList(),
+                    ServerItems = inventory.Inventory.Items.Where(x => x?.Path != null).Select(x => new CustomItemData(x, GameController)).ToList(),
                     TradeWindowItems = purchaseWindowItems.TabContainer.AllInventories[i].VisibleInventoryItems
                         .Where(x => x.Item?.Path != null)
-                        .Select(x => new CustomItemData(x.Item, GameController.Files, GameController.Area, x.GetClientRectCache))
+                        .Select(x => new CustomItemData(x.Item, GameController, x.GetClientRectCache))
                         .ToList(),
                     Title = $"-{i + 1}-",
                     IsVisible = purchaseWindowItems.TabContainer.AllInventories[i].IsVisible
