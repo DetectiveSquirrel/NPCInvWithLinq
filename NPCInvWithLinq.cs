@@ -210,7 +210,6 @@ namespace NPCInvWithLinq
             if (!string.IsNullOrEmpty(Settings.CustomConfigDir))
             {
                 var customConfigFileDirectory = Path.Combine(Path.GetDirectoryName(ConfigDirectory), Settings.CustomConfigDir);
-                DebugWindow.LogMsg(customConfigFileDirectory, 15);
 
                 if (Directory.Exists(customConfigFileDirectory))
                 {
