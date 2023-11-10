@@ -163,7 +163,18 @@ namespace NPCInvWithLinq
             base.DrawSettings();
 
             if (ImGui.Button("Open Build Folder"))
-                Process.Start("explorer.exe", ConfigDirectory);
+            {
+                var configDir = ConfigDirectory;
+                var customConfigFileDirectory = !string.IsNullOrEmpty(Settings.CustomConfigDir)
+                    ? Path.Combine(Path.GetDirectoryName(ConfigDirectory), Settings.CustomConfigDir)
+                    : null;
+
+                var directoryToOpen = Directory.Exists(customConfigFileDirectory)
+                    ? customConfigFileDirectory
+                    : configDir;
+
+                Process.Start("explorer.exe", directoryToOpen);
+            }
 
             ImGui.Separator();
             ImGui.BulletText("Select Rules To Load");
@@ -194,40 +205,48 @@ namespace NPCInvWithLinq
         private void LoadRuleFiles()
         {
             var pickitConfigFileDirectory = ConfigDirectory;
+            var existingRules = Settings.NPCInvRules;
 
-            if (!Directory.Exists(pickitConfigFileDirectory))
+            if (!string.IsNullOrEmpty(Settings.CustomConfigDir))
             {
-                Directory.CreateDirectory(pickitConfigFileDirectory);
-                return;
-            }
+                var customConfigFileDirectory = Path.Combine(Path.GetDirectoryName(ConfigDirectory), Settings.CustomConfigDir);
+                DebugWindow.LogMsg(customConfigFileDirectory, 15);
 
-            var tempPickitRules = new List<NPCInvRule>(Settings.NPCInvRules);
-            var toRemove = new List<NPCInvRule>();
-
-            var itemList = new DirectoryInfo(pickitConfigFileDirectory)
-                .GetFiles("*.ifl")
-                .Select(drItem =>
+                if (Directory.Exists(customConfigFileDirectory))
                 {
-                    var existingRule = tempPickitRules.FirstOrDefault(rule => rule.Location == drItem.FullName);
-                    if (existingRule == null)
-                        Settings.NPCInvRules.Add(new NPCInvRule(drItem.Name, drItem.FullName, false));
-                    return new FilterDirItem(drItem.Name, drItem.FullName);
-                })
-                .ToList();
+                    pickitConfigFileDirectory = customConfigFileDirectory;
+                }
+                else
+                {
+                    DebugWindow.LogError("[NPC Inventory] custom config folder does not exist.", 15);
+                }
+            }
 
             try
             {
-                tempPickitRules
-                    .Where(rule => !File.Exists(rule.Location))
-                    .ToList()
-                    .ForEach(rule => { toRemove.Add(rule); LogError($"File '{rule.Name}' not found."); });
+                var newRules = new DirectoryInfo(pickitConfigFileDirectory).GetFiles("*.ifl")
+                    .Select(x => new NPCInvRule(x.Name, Path.GetRelativePath(pickitConfigFileDirectory, x.FullName), false))
+                    .ExceptBy(existingRules.Select(x => x.Location), x => x.Location)
+                    .ToList();
+                foreach (var groundRule in existingRules)
+                {
+                    var fullPath = Path.Combine(pickitConfigFileDirectory, groundRule.Location);
+                    if (File.Exists(fullPath))
+                    {
+                        newRules.Add(groundRule);
+                    }
+                    else
+                    {
+                        LogError($"File '{groundRule.Name}' not found.");
+                    }
+                }
 
-                _itemFilters = tempPickitRules
-                    .Where(rule => rule.Enabled && File.Exists(rule.Location))
-                    .Select(rule => ItemFilter.LoadFromPath(rule.Location))
+                _itemFilters = newRules
+                    .Where(rule => rule.Enabled)
+                    .Select(rule => ItemFilter.LoadFromPath(Path.Combine(pickitConfigFileDirectory, rule.Location)))
                     .ToList();
 
-                toRemove.ForEach(rule => Settings.NPCInvRules.Remove(rule));
+                Settings.NPCInvRules = newRules;
             }
             catch (Exception e)
             {

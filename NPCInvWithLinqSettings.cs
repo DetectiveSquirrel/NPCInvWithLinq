@@ -1,4 +1,5 @@
-﻿using ExileCore.Shared.Interfaces;
+﻿using ExileCore.Shared.Attributes;
+using ExileCore.Shared.Interfaces;
 using ExileCore.Shared.Nodes;
 using SharpDX;
 using System.Collections.Generic;
@@ -18,6 +19,9 @@ namespace NPCInvWithLinq
 
         [JsonIgnore]
         public ButtonNode ReloadFilters { get; set; } = new ButtonNode();
+
+        [Menu("Use a Custom \"\\config\\custom_folder\" folder ")]
+        public TextNode CustomConfigDir { get; set; } = new TextNode();
 
         public List<NPCInvRule> NPCInvRules { get; set; } = new List<NPCInvRule>();
     }
