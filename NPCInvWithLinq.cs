@@ -20,6 +20,7 @@ namespace NPCInvWithLinq
     public class ServerAndStashWindow
     {
         public IList<WindowSet> Tabs { get; set; }
+
         public class WindowSet
         {
             public int Index { get; set; }
@@ -28,6 +29,7 @@ namespace NPCInvWithLinq
             public Element TabNameElement { get; set; }
             public List<CustomItemData> ServerItems { get; set; }
             public List<CustomItemData> TradeWindowItems { get; set; }
+
             public override string ToString()
             {
                 return $"Tab({Title}) is Index({Index}) IsVisible({IsVisible}) [ServerItems({ServerItems.Count}), TradeWindowItems({TradeWindowItems.Count})]";
@@ -48,6 +50,7 @@ namespace NPCInvWithLinq
             Name = "NPC Inv With Linq";
             _storedStashAndWindows = new TimeCache<List<WindowSet>>(UpdateCurrentTradeWindow, 50);
         }
+
         public override bool Initialise()
         {
             Settings.ReloadFilters.OnPressed = LoadRuleFiles;
@@ -66,59 +69,127 @@ namespace NPCInvWithLinq
 
         public override void Render()
         {
-            var _hoveredItem = GameController.IngameState.UIHover?.Address != 0 && GameController.IngameState.UIHover.Entity.IsValid
-                ? GameController.IngameState.UIHover
-                : null;
-
-            if (!_purchaseWindowHideout.IsVisible && !_purchaseWindow.IsVisible)
+            var hoveredItem = GetHoveredItem();
+            if (!IsPurchaseWindowVisible())
                 return;
 
-            List<string> unSeenItems = new List<string>(); // Initialize the list here
+            List<string> unSeenItems = new List<string>();
+            ProcessStoredTabs(unSeenItems, hoveredItem);
 
+            PurchaseWindow purchaseWindowItems = GetVisiblePurchaseWindow();
+            var serverItemsBox = CalculateServerItemsBox(unSeenItems, purchaseWindowItems);
+
+            DrawServerItems(serverItemsBox, unSeenItems, hoveredItem);
+
+            PerformItemFilterTest(hoveredItem);
+        }
+
+        private void DrawServerItems(SharpDX.RectangleF serverItemsBox, List<string> unSeenItems, Element hoveredItem)
+        {
+            if (hoveredItem == null || !hoveredItem.Tooltip.GetClientRectCache.Intersects(serverItemsBox))
+            {
+                var boxColor = new SharpDX.Color(0, 0, 0, 150);
+                var textColor = new SharpDX.Color(255, 255, 255, 230);
+
+                Graphics.DrawBox(serverItemsBox, boxColor);
+
+                for (int i = 0; i < unSeenItems.Count; i++)
+                {
+                    string stringItem = unSeenItems[i];
+                    var textHeight = Graphics.MeasureText(stringItem);
+                    var textPadding = 10;
+
+                    Graphics.DrawText(stringItem, new Vector2(serverItemsBox.X + textPadding, serverItemsBox.Y + (textHeight.Y * i)), textColor);
+                }
+            }
+        }
+
+        private Element GetHoveredItem()
+        {
+            return GameController.IngameState.UIHover?.Address != 0 && GameController.IngameState.UIHover.Entity.IsValid
+                ? GameController.IngameState.UIHover
+                : null;
+        }
+
+        private bool IsPurchaseWindowVisible()
+        {
+            return _purchaseWindowHideout.IsVisible || _purchaseWindow.IsVisible;
+        }
+
+        private void ProcessStoredTabs(List<string> unSeenItems, Element hoveredItem)
+        {
             foreach (var storedTab in _storedStashAndWindows.Value)
             {
                 if (storedTab.IsVisible)
-                {
-                    foreach (var visibleItem in storedTab.TradeWindowItems)
-                    {
-                        if (visibleItem == null) continue;
-                        if (ItemInFilter(visibleItem))
-                        {
-                            if (_hoveredItem != null && _hoveredItem.Tooltip.GetClientRectCache.Intersects(visibleItem.ClientRectangleCache) && _hoveredItem.Entity.Address != visibleItem.Entity.Address)
-                                Graphics.DrawFrame(visibleItem.ClientRectangleCache, Settings.FrameColor.Value with { A = 45 }, Settings.FrameThickness);
-                            else
-                                Graphics.DrawFrame(visibleItem.ClientRectangleCache, Settings.FrameColor, Settings.FrameThickness);
-                        }
-                    }
-                }
+                    ProcessVisibleTabItems(storedTab.TradeWindowItems, hoveredItem);
                 else
+                    ProcessHiddenTabItems(storedTab, unSeenItems, hoveredItem);
+            }
+        }
+
+        private void ProcessVisibleTabItems(IEnumerable<CustomItemData> items, Element hoveredItem)
+        {
+            foreach (var visibleItem in items.Where(item => item != null && ItemInFilter(item)))
+            {
+                DrawItemFrame(visibleItem, hoveredItem);
+            }
+        }
+
+        private void ProcessHiddenTabItems(WindowSet storedTab, List<string> unSeenItems, Element hoveredItem)
+        {
+            var tabHadWantedItem = false;
+            foreach (var hiddenItem in storedTab.ServerItems)
+            {
+                if (hiddenItem == null) continue;
+                if (ItemInFilter(hiddenItem))
                 {
-                    var tabHadWantedItem = false;
-                    foreach (var hiddenItem in storedTab.ServerItems)
-                    {
-                        if (hiddenItem == null) continue;
-                        if (ItemInFilter(hiddenItem))
-                        {
-                            if (!unSeenItems.Contains($"Tab [{storedTab.Title}]"))
-                            {
-                                unSeenItems.Add($"Tab [{storedTab.Title}]");
-                                if (Settings.DrawOnTabLabels)
-                                    if (_hoveredItem == null || !_hoveredItem.Tooltip.GetClientRectCache.Intersects(storedTab.TabNameElement.GetClientRectCache))
-                                        Graphics.DrawFrame(storedTab.TabNameElement.GetClientRectCache, Settings.FrameColor, Settings.FrameThickness);
-                                    else
-                                        Graphics.DrawFrame(storedTab.TabNameElement.GetClientRectCache, Settings.FrameColor.Value with { A = 45 }, Settings.FrameThickness);
-                            }
-                            unSeenItems.Add($"\t{hiddenItem.Name}");
-                            tabHadWantedItem = true;
-                        }
-                    }
-                    if (tabHadWantedItem)
-                        unSeenItems.Add("");
+                    ProcessUnseenItems(unSeenItems, storedTab, hoveredItem);
+                    unSeenItems.Add($"\t{hiddenItem.Name}");
+                    tabHadWantedItem = true;
                 }
             }
+            if (tabHadWantedItem)
+                unSeenItems.Add("");
+        }
 
-            PurchaseWindow purchaseWindowItems = _purchaseWindowHideout.IsVisible ? _purchaseWindowHideout : _purchaseWindow;
+        private void ProcessUnseenItems(List<string> unSeenItems, WindowSet storedTab, Element hoveredItem)
+        {
+            if (!unSeenItems.Contains($"Tab [{storedTab.Title}]"))
+            {
+                unSeenItems.Add($"Tab [{storedTab.Title}]");
+                if (Settings.DrawOnTabLabels)
+                {
+                    DrawTabNameElementFrame(storedTab.TabNameElement, hoveredItem);
+                }
+            }
+        }
 
+        private void DrawItemFrame(CustomItemData item, Element hoveredItem)
+        {
+            if (hoveredItem != null && hoveredItem.Tooltip.GetClientRectCache.Intersects(item.ClientRectangleCache) && hoveredItem.Entity.Address != item.Entity.Address)
+            {
+                Graphics.DrawFrame(item.ClientRectangleCache, Settings.FrameColor.Value with { A = 45 }, Settings.FrameThickness);
+            }
+            else
+            {
+                Graphics.DrawFrame(item.ClientRectangleCache, Settings.FrameColor, Settings.FrameThickness);
+            }
+        }
+
+        private void DrawTabNameElementFrame(Element tabNameElement, Element hoveredItem)
+        {
+            if (hoveredItem == null || !hoveredItem.Tooltip.GetClientRectCache.Intersects(tabNameElement.GetClientRectCache))
+            {
+                Graphics.DrawFrame(tabNameElement.GetClientRectCache, Settings.FrameColor, Settings.FrameThickness);
+            }
+            else
+            {
+                Graphics.DrawFrame(tabNameElement.GetClientRectCache, Settings.FrameColor.Value with { A = 45 }, Settings.FrameThickness);
+            }
+        }
+
+        private SharpDX.RectangleF CalculateServerItemsBox(List<string> unSeenItems, PurchaseWindow purchaseWindowItems)
+        {
             var startingPoint = purchaseWindowItems.TabContainer.GetClientRectCache.TopRight.ToVector2Num();
             startingPoint.X += 15;
 
@@ -126,32 +197,26 @@ namespace NPCInvWithLinq
             var textHeight = Graphics.MeasureText(longestText);
             var textPadding = 10;
 
-            var serverItemsBox = new SharpDX.RectangleF
+            return new SharpDX.RectangleF
             {
                 Height = textHeight.Y * unSeenItems.Count,
                 Width = textHeight.X + (textPadding * 2),
                 X = startingPoint.X,
                 Y = startingPoint.Y
             };
+        }
 
-            var boxColor = new SharpDX.Color(0, 0, 0, 150);
-            var textColor = new SharpDX.Color(255, 255, 255, 230);
+        private PurchaseWindow GetVisiblePurchaseWindow()
+        {
+            return _purchaseWindowHideout.IsVisible ? _purchaseWindowHideout : _purchaseWindow;
+        }
 
-            if (_hoveredItem == null || !_hoveredItem.Tooltip.GetClientRectCache.Intersects(serverItemsBox))
+        private void PerformItemFilterTest(Element hoveredItem)
+        {
+            if (Settings.FilterTest.Value is { Length: > 0 } && hoveredItem != null)
             {
-                Graphics.DrawBox(serverItemsBox, boxColor);
-
-                for (int i = 0; i < unSeenItems.Count; i++)
-                {
-                    string stringItem = unSeenItems[i];
-                    Graphics.DrawText(stringItem, new Vector2(startingPoint.X + textPadding, startingPoint.Y + (textHeight.Y * i)), textColor);
-                }
-            }
-
-            if (Settings.FilterTest.Value is { Length: > 0 } && _hoveredItem != null)
-            {
-                var f = ItemFilter.LoadFromString(Settings.FilterTest);
-                var matched = f.Matches(new ItemData(_hoveredItem.Entity, GameController));
+                var filter = ItemFilter.LoadFromString(Settings.FilterTest);
+                var matched = filter.Matches(new ItemData(hoveredItem.Entity, GameController));
                 DebugWindow.LogMsg($"Debug item match on hover: {matched}");
             }
         }

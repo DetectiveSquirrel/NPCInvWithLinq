@@ -32,6 +32,7 @@ public class NPCInvRule
     public string Name { get; set; } = "";
     public string Location { get; set; } = "";
     public bool Enabled { get; set; } = false;
+
     public NPCInvRule(string name, string location, bool enabled)
     {
         Name = name;
