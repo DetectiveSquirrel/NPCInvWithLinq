@@ -208,7 +208,7 @@ namespace NPCInvWithLinq
 
         private PurchaseWindow GetVisiblePurchaseWindow()
         {
-            return _purchaseWindowHideout.IsVisible ? _purchaseWindowHideout : _purchaseWindow;
+            return _purchaseWindowHideout.IsVisible ? _purchaseWindowHideout : _purchaseWindow.IsVisible ? _purchaseWindow : null;
         }
 
         private void PerformItemFilterTest(Element hoveredItem)
@@ -323,9 +323,7 @@ namespace NPCInvWithLinq
             if (_purchaseWindowHideout == null || _purchaseWindow == null)
                 return new List<WindowSet>();
 
-            PurchaseWindow purchaseWindowItems = (GameController.Game.IngameState.Data.CurrentWorldArea.IsHideout && _purchaseWindowHideout.IsVisible)
-                ? _purchaseWindowHideout
-                : ((GameController.Game.IngameState.Data.CurrentWorldArea.IsTown && _purchaseWindow.IsVisible) ? _purchaseWindow : null);
+            var purchaseWindowItems = GetVisiblePurchaseWindow();
 
             if (purchaseWindowItems == null)
                 return new List<WindowSet>();
