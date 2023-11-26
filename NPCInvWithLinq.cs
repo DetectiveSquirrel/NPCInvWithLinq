@@ -19,7 +19,7 @@ public class ServerAndStashWindow
 {
     public IList<WindowSet> Tabs { get; set; }
 
-    public record WindowSet
+    public class WindowSet
     {
         public int Index { get; set; }
         public string Title { get; set; }
@@ -297,7 +297,7 @@ public class NPCInvWithLinq : BaseSettingsPlugin<NPCInvWithLinqSettings>
 
     private List<WindowSet> UpdateCurrentTradeWindow(List<WindowSet> previousValue)
     {
-        var previousDict = previousValue?.ToDictionary(x => (x.Inventory.Address, x.Inventory.ServerRequestCounter));
+        var previousDict = previousValue?.ToDictionary(x => (x.Inventory.Address, x.Inventory.ServerRequestCounter, x.IsVisible, x.TradeWindowItems.Count));
         var purchaseWindowItems = (_purchaseWindowHideout, _purchaseWindow) switch
         {
             ({ IsVisible: true } w, _) => w,
@@ -311,9 +311,13 @@ public class NPCInvWithLinq : BaseSettingsPlugin<NPCInvWithLinqSettings>
         return GameController.Game.IngameState.ServerData.NPCInventories.Select((inventory, i) =>
         {
             var serverInventory = inventory.Inventory;
-            if (previousDict?.TryGetValue((serverInventory.Address, serverInventory.ServerRequestCounter), out var previousSet) == true)
+            var uiInventory = purchaseWindowItems.TabContainer.AllInventories[i];
+            var isVisible = uiInventory.IsVisible;
+            var visibleValidUiItems = uiInventory.VisibleInventoryItems
+                .Where(x => x.Item?.Path != null).ToList();
+            if (previousDict?.TryGetValue((serverInventory.Address, serverInventory.ServerRequestCounter, isVisible, visibleValidUiItems.Count), out var previousSet) == true)
             {
-                return previousSet with { IsVisible = purchaseWindowItems.TabContainer.AllInventories[i].IsVisible };
+                return previousSet;
             }
 
             var title = $"-{i + 1}-";
@@ -322,12 +326,11 @@ public class NPCInvWithLinq : BaseSettingsPlugin<NPCInvWithLinqSettings>
                 Inventory = serverInventory,
                 Index = i,
                 ServerItems = serverInventory.Items.Where(x => x?.Path != null).Select(x => new CustomItemData(x, GameController, EKind.Shop)).ToList(),
-                TradeWindowItems = purchaseWindowItems.TabContainer.AllInventories[i].VisibleInventoryItems
-                    .Where(x => x.Item?.Path != null)
+                TradeWindowItems = visibleValidUiItems
                     .Select(x => new CustomItemData(x.Item, GameController, EKind.Shop, x.GetClientRectCache))
                     .ToList(),
                 Title = title,
-                IsVisible = purchaseWindowItems.TabContainer.AllInventories[i].IsVisible,
+                IsVisible = isVisible,
                 TabNameElement = purchaseWindowItems.TabContainer.TabSwitchBar.Children
                     .FirstOrDefault(x => x?.GetChildAtIndex(0)?.GetChildAtIndex(1)?.Text == title)
             };
