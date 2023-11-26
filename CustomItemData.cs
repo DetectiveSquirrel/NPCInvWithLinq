@@ -4,14 +4,18 @@ using ItemFilterLibrary;
 
 public class CustomItemData : ItemData
 {
-    public CustomItemData(Entity queriedItem, GameController gc) : base(queriedItem, gc)
+    public CustomItemData(Entity queriedItem, GameController gc, EKind kind, SharpDX.RectangleF clientRect = default) : base(queriedItem, gc)
     {
+        Kind = kind;
+        ClientRectangle = clientRect;
     }
 
-    public CustomItemData(Entity queriedItem, GameController gc, SharpDX.RectangleF GetClientRectCache) : base(queriedItem, gc)
-    {
-        ClientRectangleCache = GetClientRectCache;
-    }
+    public SharpDX.RectangleF ClientRectangle { get; set; }
+    public EKind Kind { get; }
+}
 
-    public SharpDX.RectangleF ClientRectangleCache { get; set; }
+public enum EKind
+{
+    QuestReward,
+    Shop,
 }
