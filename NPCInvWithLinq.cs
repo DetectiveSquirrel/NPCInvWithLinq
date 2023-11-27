@@ -40,7 +40,7 @@ public class NPCInvWithLinq : BaseSettingsPlugin<NPCInvWithLinqSettings>
 {
     private readonly CachedValue<List<WindowSet>> _storedStashAndWindows;
     private readonly CachedValue<List<CustomItemData>> _rewardItems;
-    private List<ItemFilter> _itemFilters;
+    private List<ItemFilter<CustomItemData>> _itemFilters;
     private PurchaseWindow _purchaseWindowHideout;
     private PurchaseWindow _purchaseWindow;
 
@@ -284,7 +284,7 @@ public class NPCInvWithLinq : BaseSettingsPlugin<NPCInvWithLinqSettings>
 
             _itemFilters = newRules
                 .Where(rule => rule.Enabled)
-                .Select(rule => ItemFilter.LoadFromPath(Path.Combine(pickitConfigFileDirectory, rule.Location)))
+                .Select(rule => ItemFilter.LoadFromPath<CustomItemData>(Path.Combine(pickitConfigFileDirectory, rule.Location)))
                 .ToList();
 
             Settings.NPCInvRules = newRules;
@@ -339,7 +339,7 @@ public class NPCInvWithLinq : BaseSettingsPlugin<NPCInvWithLinqSettings>
         }).ToList();
     }
 
-    private bool ItemInFilter(ItemData item)
+    private bool ItemInFilter(CustomItemData item)
     {
         return _itemFilters?.Any(filter => filter.Matches(item)) ?? false;
     }
