@@ -306,16 +306,20 @@ public class NPCInvWithLinq : BaseSettingsPlugin<NPCInvWithLinqSettings>
         };
 
         if (purchaseWindowItems == null)
-            return new List<WindowSet>();
+            return [];
 
-        return GameController.Game.IngameState.ServerData.NPCInventories.Select((inventory, i) =>
+        return purchaseWindowItems.TabContainer.AllInventories.Select((uiInventory, i) =>
         {
-            var serverInventory = inventory.Inventory;
-            var uiInventory = purchaseWindowItems.TabContainer.AllInventories[i];
+            var serverInventory = uiInventory.ServerInventory;
+            if (serverInventory == null)
+            {
+                DebugWindow.LogError($"Server inventory for ui inventory {uiInventory} ({uiInventory.InvType}) is missing");
+            }
+
             var isVisible = uiInventory.IsVisible;
             var visibleValidUiItems = uiInventory.VisibleInventoryItems
                 .Where(x => x.Item?.Path != null).ToList();
-            if (previousDict?.TryGetValue((serverInventory.Address, serverInventory.ServerRequestCounter, isVisible, visibleValidUiItems.Count), out var previousSet) == true)
+            if (previousDict?.TryGetValue((serverInventory?.Address ?? 0, serverInventory?.ServerRequestCounter ?? -1, isVisible, visibleValidUiItems.Count), out var previousSet) == true)
             {
                 return previousSet;
             }
@@ -325,7 +329,7 @@ public class NPCInvWithLinq : BaseSettingsPlugin<NPCInvWithLinqSettings>
             {
                 Inventory = serverInventory,
                 Index = i,
-                ServerItems = serverInventory.Items.Where(x => x?.Path != null).Select(x => new CustomItemData(x, GameController, EKind.Shop)).ToList(),
+                ServerItems = serverInventory?.Items.Where(x => x?.Path != null).Select(x => new CustomItemData(x, GameController, EKind.Shop)).ToList() ?? [],
                 TradeWindowItems = visibleValidUiItems
                     .Select(x => new CustomItemData(x.Item, GameController, EKind.Shop, x.GetClientRectCache))
                     .ToList(),
