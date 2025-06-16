@@ -5,6 +5,7 @@ using SharpDX;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using ExileCore.Shared.Helpers;
+using ImGuiNET;
 
 namespace NPCInvWithLinq;
 
@@ -13,6 +14,7 @@ public class NPCInvWithLinqSettings : ISettings
     public ToggleNode Enable { get; set; } = new ToggleNode(false);
     public ToggleNode DrawOnTabLabels { get; set; } = new ToggleNode(true);
     public ColorNode TabFrameColor { get; set; } = new ColorNode(Color.Red);
+    public RangeNode<int> TransparencyUnderTooltip { get; set; } = new RangeNode<int>(45, 0, 255);
     public RangeNode<int> FrameThickness { get; set; } = new RangeNode<int>(1, 1, 20);
 
     [JsonIgnore]

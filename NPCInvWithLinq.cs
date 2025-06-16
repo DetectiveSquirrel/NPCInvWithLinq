@@ -41,6 +41,7 @@ public class NPCInvWithLinq : BaseSettingsPlugin<NPCInvWithLinqSettings>
     public static NPCInvWithLinq Main;
     private readonly CachedValue<List<CustomItemData>> _rewardItems;
     private readonly CachedValue<List<CustomItemData>> _ritualItems;
+    private readonly CachedValue<List<CustomItemData>> _mercenaryItems;
     private readonly CachedValue<List<WindowSet>> _storedStashAndWindows;
     private PurchaseWindow _purchaseWindow;
     private PurchaseWindow _purchaseWindowHideout;
@@ -54,6 +55,7 @@ public class NPCInvWithLinq : BaseSettingsPlugin<NPCInvWithLinqSettings>
             new TimeCache<List<WindowSet>>(CacheUtils.RememberLastValue<List<WindowSet>>(UpdateCurrentTradeWindow), 50);
         _rewardItems = new TimeCache<List<CustomItemData>>(GetRewardItems, 1000);
         _ritualItems = new TimeCache<List<CustomItemData>>(GetRitualItems, 1000);
+        _mercenaryItems = new TimeCache<List<CustomItemData>>(GetMercenaryItems, 1000);
     }
 
     public override bool Initialise()
@@ -84,6 +86,7 @@ public class NPCInvWithLinq : BaseSettingsPlugin<NPCInvWithLinqSettings>
         ProcessPurchaseWindow(hoveredItem);
         ProcessRewardsWindow(hoveredItem);
         ProcessRitualWindow(hoveredItem);
+        ProcessMercenaryWindow(hoveredItem);
     }
 
     private void ProcessRewardsWindow(Element hoveredItem)
@@ -101,27 +104,34 @@ public class NPCInvWithLinq : BaseSettingsPlugin<NPCInvWithLinqSettings>
         ProcessItems(hoveredItem, _ritualItems?.Value ?? []);
     }
 
+    private void ProcessMercenaryWindow(Element hoveredItem)
+    {
+        if (!GameController.IngameState.IngameUi.MercenaryEncounterWindow.IsVisible) return;
+
+        ProcessItems(hoveredItem, _mercenaryItems?.Value ?? []);
+    }
+
     private void ProcessItems(Element hoveredItem, List<CustomItemData> items)
     {
-        foreach (var reward in items)
+        foreach (var item in items)
         {
-            ProcessItem(hoveredItem, reward);
+            ProcessItem(hoveredItem, item);
         }
     }
 
-    private void ProcessItem(Element hoveredItem, CustomItemData reward)
+    private void ProcessItem(Element hoveredItem, CustomItemData item)
     {
-        if (GetItemFilter(reward) is { } filter)
+        if (GetItemFilter(item) is { } filter)
         {
             var frameColor = filter.Color;
             if (hoveredItem != null &&
-                hoveredItem.Tooltip.GetClientRectCache.Intersects(reward.ClientRectangle) && 
-                hoveredItem.Entity.Address != reward.Entity.Address)
+                hoveredItem.Tooltip.GetClientRectCache.Intersects(item.ClientRectangle) && 
+                hoveredItem.Entity.Address != item.Entity.Address)
             {
-                frameColor = frameColor.ToImguiVec4(45).ToSharpColor();
+                frameColor.A = (byte)Settings.TransparencyUnderTooltip.Value;
             }
 
-            Graphics.DrawFrame(reward.ClientRectangle, frameColor, Settings.FrameThickness);
+            Graphics.DrawFrame(item.ClientRectangle, frameColor, Settings.FrameThickness);
         }
     }
 
@@ -139,6 +149,14 @@ public class NPCInvWithLinq : BaseSettingsPlugin<NPCInvWithLinqSettings>
         return GameController.IngameState.IngameUi.RitualWindow.InventoryElement.VisibleInventoryItems
             .Where(item => item.Item is { Address: not 0, IsValid: true })
             .Select(item => new CustomItemData(item.Item, GameController, EKind.RitualReward, item.GetClientRectCache))
+            .ToList();
+    }
+
+    private List<CustomItemData> GetMercenaryItems()
+    {
+        return GameController.IngameState.IngameUi.MercenaryEncounterWindow.Inventories.SelectMany(x => x.VisibleInventoryItems)
+            .Where(item => item.Item is { Address: not 0, IsValid: true })
+            .Select(item => new CustomItemData(item.Item, GameController, EKind.Mercenary, item.GetClientRectCache))
             .ToList();
     }
 
