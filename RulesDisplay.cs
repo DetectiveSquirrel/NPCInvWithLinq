@@ -39,10 +39,11 @@ public class RulesDisplay
             "Rule Files\nFiles are loaded in order, so easier to process (common item queries hit more often that others) rule sets should be loaded first.");
         ImGui.Separator();
 
-        if (ImGui.BeginTable("RulesTable", 3, ImGuiTableFlags.Borders | ImGuiTableFlags.Resizable))
+        if (ImGui.BeginTable("RulesTable", 4, ImGuiTableFlags.Borders | ImGuiTableFlags.Resizable))
         {
             ImGui.TableSetupColumn("Drag", ImGuiTableColumnFlags.WidthFixed, 40);
-            ImGui.TableSetupColumn("Toggle", ImGuiTableColumnFlags.WidthFixed, 50);
+            ImGui.TableSetupColumn("Toggle", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 50);
+            ImGui.TableSetupColumn("Color", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 50);
             ImGui.TableSetupColumn("File", ImGuiTableColumnFlags.None);
             ImGui.TableHeadersRow();
 
@@ -103,10 +104,16 @@ public class RulesDisplay
                     rule.Enabled = enabled;
                     LoadAndApplyRules();
                 }
-
                 ImGui.PopID();
 
                 ImGui.TableSetColumnIndex(2);
+
+                if (rule.Color.DrawPicker($"##color{i}"))
+                {
+                    LoadAndApplyRules();
+                }
+
+                ImGui.TableSetColumnIndex(3);
                 ImGui.PushID(rule.Location);
 
                 var directoryPart =
@@ -236,7 +243,7 @@ public class RulesDisplay
                 .Select(rule =>
                 {
                     var rulePath = Path.Combine(pickitConfigFileDirectory, rule.Location);
-                    return LoadItemFilterWithRetry(rulePath);
+                    return new FilterEntry(LoadItemFilterWithRetry(rulePath), rule.Color);
                 })
                 .ToList();
 

@@ -6,7 +6,6 @@ using ExileCore.PoEMemory.Elements;
 using ExileCore.PoEMemory.MemoryObjects;
 using ExileCore.Shared.Cache;
 using ExileCore.Shared.Helpers;
-using ExileCore.Shared.Nodes;
 using Ground_Items_With_Linq;
 using ItemFilterLibrary;
 using SharpDX;
@@ -45,7 +44,8 @@ public class NPCInvWithLinq : BaseSettingsPlugin<NPCInvWithLinqSettings>
     private readonly CachedValue<List<WindowSet>> _storedStashAndWindows;
     private PurchaseWindow _purchaseWindow;
     private PurchaseWindow _purchaseWindowHideout;
-    public List<ItemFilter<CustomItemData>> ItemFilters;
+    public List<FilterEntry> ItemFilters;
+    public sealed record FilterEntry(ItemFilter<CustomItemData> Filter, Color Color);
 
     public NPCInvWithLinq()
     {
@@ -90,31 +90,36 @@ public class NPCInvWithLinq : BaseSettingsPlugin<NPCInvWithLinqSettings>
     {
         if (!GameController.IngameState.IngameUi.QuestRewardWindow.IsVisible) return;
 
-        foreach (var reward in _rewardItems?.Value.Where(x => ItemFilters.Any(y => y.Matches(x))) ??
-                               Enumerable.Empty<CustomItemData>())
-        {
-            var frameColor = hoveredItem != null &&
-                             hoveredItem.Tooltip.GetClientRectCache.Intersects(reward.ClientRectangle) &&
-                             hoveredItem.Entity.Address != reward.Entity.Address
-                ? (ColorNode)(Settings.FrameColor.Value with { A = 45 })
-                : Settings.FrameColor;
-
-            Graphics.DrawFrame(reward.ClientRectangle, frameColor, Settings.FrameThickness);
-        }
+        var items = _rewardItems?.Value ?? [];
+        ProcessItems(hoveredItem, items);
     }
 
     private void ProcessRitualWindow(Element hoveredItem)
     {
         if (!GameController.IngameState.IngameUi.RitualWindow.IsVisible) return;
 
-        foreach (var reward in _ritualItems?.Value.Where(x => ItemFilters.Any(y => y.Matches(x))) ??
-                               Enumerable.Empty<CustomItemData>())
+        ProcessItems(hoveredItem, _ritualItems?.Value ?? []);
+    }
+
+    private void ProcessItems(Element hoveredItem, List<CustomItemData> items)
+    {
+        foreach (var reward in items)
         {
-            var frameColor = hoveredItem != null &&
-                             hoveredItem.Tooltip.GetClientRectCache.Intersects(reward.ClientRectangle) &&
-                             hoveredItem.Entity.Address != reward.Entity.Address
-                ? (ColorNode)(Settings.FrameColor.Value with { A = 45 })
-                : Settings.FrameColor;
+            ProcessItem(hoveredItem, reward);
+        }
+    }
+
+    private void ProcessItem(Element hoveredItem, CustomItemData reward)
+    {
+        if (GetItemFilter(reward) is { } filter)
+        {
+            var frameColor = filter.Color;
+            if (hoveredItem != null &&
+                hoveredItem.Tooltip.GetClientRectCache.Intersects(reward.ClientRectangle) && 
+                hoveredItem.Entity.Address != reward.Entity.Address)
+            {
+                frameColor = frameColor.ToImguiVec4(45).ToSharpColor();
+            }
 
             Graphics.DrawFrame(reward.ClientRectangle, frameColor, Settings.FrameThickness);
         }
@@ -186,15 +191,9 @@ public class NPCInvWithLinq : BaseSettingsPlugin<NPCInvWithLinqSettings>
     {
         foreach (var storedTab in _storedStashAndWindows.Value)
             if (storedTab.IsVisible)
-                ProcessVisibleTabItems(storedTab.TradeWindowItems, hoveredItem);
+                ProcessItems(hoveredItem, storedTab.TradeWindowItems);
             else
                 ProcessHiddenTabItems(storedTab, unSeenItems, hoveredItem);
-    }
-
-    private void ProcessVisibleTabItems(IEnumerable<CustomItemData> items, Element hoveredItem)
-    {
-        foreach (var visibleItem in items.Where(item => item != null && ItemInFilter(item)))
-            DrawItemFrame(visibleItem, hoveredItem);
     }
 
     private void ProcessHiddenTabItems(WindowSet storedTab, List<string> unSeenItems, Element hoveredItem)
@@ -224,23 +223,13 @@ public class NPCInvWithLinq : BaseSettingsPlugin<NPCInvWithLinqSettings>
         }
     }
 
-    private void DrawItemFrame(CustomItemData item, Element hoveredItem)
-    {
-        if (hoveredItem != null && hoveredItem.Tooltip.GetClientRectCache.Intersects(item.ClientRectangle) &&
-            hoveredItem.Entity.Address != item.Entity.Address)
-            Graphics.DrawFrame(item.ClientRectangle, Settings.FrameColor.Value with { A = 45 },
-                Settings.FrameThickness);
-        else
-            Graphics.DrawFrame(item.ClientRectangle, Settings.FrameColor, Settings.FrameThickness);
-    }
-
     private void DrawTabNameElementFrame(Element tabNameElement, Element hoveredItem)
     {
         if (hoveredItem == null ||
             !hoveredItem.Tooltip.GetClientRectCache.Intersects(tabNameElement.GetClientRectCache))
-            Graphics.DrawFrame(tabNameElement.GetClientRectCache, Settings.FrameColor, Settings.FrameThickness);
+            Graphics.DrawFrame(tabNameElement.GetClientRectCache, Settings.TabFrameColor, Settings.FrameThickness);
         else
-            Graphics.DrawFrame(tabNameElement.GetClientRectCache, Settings.FrameColor.Value with { A = 45 },
+            Graphics.DrawFrame(tabNameElement.GetClientRectCache, Settings.TabFrameColor.Value with { A = 45 },
                 Settings.FrameThickness);
     }
 
@@ -292,8 +281,10 @@ public class NPCInvWithLinq : BaseSettingsPlugin<NPCInvWithLinqSettings>
         if (purchaseWindowItems == null)
             return [];
 
-        return purchaseWindowItems.TabContainer.AllInventories.Select((uiInventory, i) =>
+        return purchaseWindowItems.TabContainer.Inventories.Select((inventory, i) =>
         {
+            var uiInventory = inventory?.Inventory;
+            if (uiInventory == null) return null;
             var serverInventory = uiInventory.ServerInventory;
             if (serverInventory == null)
                 DebugWindow.LogError(
@@ -318,16 +309,14 @@ public class NPCInvWithLinq : BaseSettingsPlugin<NPCInvWithLinqSettings>
                     .ToList(),
                 Title = title,
                 IsVisible = isVisible,
-                TabNameElement = purchaseWindowItems.TabContainer.TabSwitchBar.Children
-                    .FirstOrDefault(x => x?.GetChildAtIndex(0)?.GetChildAtIndex(1)?.Text == title)
+                TabNameElement = inventory.TabButton
             };
 
             return newTab;
-        }).ToList();
+        }).Where(x => x != null).ToList();
     }
 
-    private bool ItemInFilter(CustomItemData item)
-    {
-        return ItemFilters?.Any(filter => filter.Matches(item)) ?? false;
-    }
+    private bool ItemInFilter(CustomItemData item) => GetItemFilter(item) != null;
+
+    private FilterEntry GetItemFilter(CustomItemData item) => ItemFilters?.FirstOrDefault(filter => filter.Filter.Matches(item));
 }
